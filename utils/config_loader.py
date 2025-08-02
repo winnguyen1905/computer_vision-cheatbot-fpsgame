@@ -25,6 +25,12 @@ class ConfigLoader:
         
         # Default configuration
         self.default_config = {
+            "capture_region": {
+                "top": 0,
+                "left": 0,
+                "width": 1920,
+                "height": 1080
+            },
             "tracking": {
                 "fps": 30,
                 "confidence_threshold": 0.8,
@@ -33,11 +39,19 @@ class ConfigLoader:
             },
             "detection": {
                 "method": "template",
-                "template_path": "templates/target_object.png"
+                "template_path": "templates/target_object.png",
+                "min_area": 500,
+                "background_history": 50,
+                "background_threshold": 16,
+                "motion_threshold": 25,
+                "dilate_iterations": 2,
+                "blur_kernel_size": 21
             },
             "mouse": {
                 "auto_click": False,
-                "click_delay": 0.1
+                "click_delay": 0.1,
+                "move_duration": 0.1,
+                "enable_click": False
             }
         }
     
@@ -137,6 +151,14 @@ class ConfigLoader:
             ValueError: If configuration is invalid
         """
         try:
+            # Validate capture region section
+            capture_region = config.get('capture_region', {})
+            
+            for dimension in ['top', 'left', 'width', 'height']:
+                value = capture_region.get(dimension, 0)
+                if not isinstance(value, int) or value < 0:
+                    raise ValueError(f"Invalid capture region {dimension}: {value} (must be non-negative integer)")
+            
             # Validate tracking section
             tracking = config.get('tracking', {})
             
@@ -156,8 +178,36 @@ class ConfigLoader:
             detection = config.get('detection', {})
             
             method = detection.get('method', 'template')
-            if method not in ['template', 'color']:
-                raise ValueError(f"Invalid detection method: {method} (must be 'template' or 'color')")
+            valid_methods = ['template', 'color', 'motion', 'mog2', 'knn', 'frame_diff']
+            if method not in valid_methods:
+                raise ValueError(f"Invalid detection method: {method} (must be one of {valid_methods})")
+            
+            # Validate motion detection parameters
+            if method in ['motion', 'mog2', 'knn', 'frame_diff']:
+                min_area = detection.get('min_area', 500)
+                if not isinstance(min_area, int) or min_area < 0:
+                    raise ValueError(f"Invalid min_area: {min_area} (must be non-negative integer)")
+                
+                motion_threshold = detection.get('motion_threshold', 25)
+                if not isinstance(motion_threshold, int) or motion_threshold < 0 or motion_threshold > 255:
+                    raise ValueError(f"Invalid motion_threshold: {motion_threshold} (must be 0-255)")
+                
+                dilate_iterations = detection.get('dilate_iterations', 2)
+                if not isinstance(dilate_iterations, int) or dilate_iterations < 0:
+                    raise ValueError(f"Invalid dilate_iterations: {dilate_iterations} (must be non-negative integer)")
+                
+                blur_kernel_size = detection.get('blur_kernel_size', 21)
+                if not isinstance(blur_kernel_size, int) or blur_kernel_size < 1 or blur_kernel_size % 2 == 0:
+                    raise ValueError(f"Invalid blur_kernel_size: {blur_kernel_size} (must be positive odd integer)")
+                
+                if method in ['mog2', 'knn']:
+                    background_history = detection.get('background_history', 50)
+                    if not isinstance(background_history, int) or background_history < 1:
+                        raise ValueError(f"Invalid background_history: {background_history} (must be positive integer)")
+                    
+                    background_threshold = detection.get('background_threshold', 16)
+                    if not isinstance(background_threshold, (int, float)) or background_threshold < 0:
+                        raise ValueError(f"Invalid background_threshold: {background_threshold} (must be non-negative)")
             
             # Validate mouse section
             mouse = config.get('mouse', {})
@@ -165,6 +215,14 @@ class ConfigLoader:
             click_delay = mouse.get('click_delay', 0.1)
             if not isinstance(click_delay, (int, float)) or click_delay < 0:
                 raise ValueError(f"Invalid click delay: {click_delay} (must be >= 0)")
+            
+            move_duration = mouse.get('move_duration', 0.1)
+            if not isinstance(move_duration, (int, float)) or move_duration < 0:
+                raise ValueError(f"Invalid move duration: {move_duration} (must be >= 0)")
+            
+            enable_click = mouse.get('enable_click', False)
+            if not isinstance(enable_click, bool):
+                raise ValueError(f"Invalid enable_click: {enable_click} (must be boolean)")
             
         except Exception as e:
             raise ValueError(f"Configuration validation failed: {e}")

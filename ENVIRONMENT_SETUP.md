@@ -1,232 +1,126 @@
 # Object Detective - Environment Setup Guide
 
-This guide will help you set up the environment variables and dependencies needed to run the Object Detective project successfully.
+## Quick Setup (Recommended)
 
-## 🚀 Quick Start
-
-Choose your platform and run the appropriate setup script:
-
-### Windows (Command Prompt)
-```cmd
+### Windows
+```bash
+# Method 1: Use the automated setup script
 setup_env.bat
+
+# Method 2: Manual setup
+pip install --upgrade pip setuptools wheel
+pip install -r requirements.txt
 ```
 
-### Windows (PowerShell)
-```powershell
-.\setup_env.ps1
-```
-
-### Linux/Mac (Bash)
+### Linux/macOS
 ```bash
-chmod +x setup_env.sh
+# Use the automated setup script
 ./setup_env.sh
+
+# Or manual setup
+pip install --upgrade pip setuptools wheel
+pip install -r requirements.txt
 ```
 
-## 📋 What the Setup Scripts Do
+## Troubleshooting Common Issues
 
-1. **Set Environment Variables** - Configure all necessary environment variables
-2. **Create Virtual Environment** - Set up an isolated Python environment
-3. **Install Dependencies** - Install all required packages from `requirements.txt`
-4. **Test Basic Functionality** - Verify that core modules can be imported
-5. **Provide Usage Instructions** - Show you how to test and run the project
+### 1. ModuleNotFoundError: No module named 'cv2'
 
-## 🔧 Environment Variables Set
+**Problem**: OpenCV is not installed in your Python environment.
 
-| Variable | Purpose | Default Value |
-|----------|---------|---------------|
-| `OBJECT_DETECTIVE_ROOT` | Project root directory | Current directory |
-| `OBJECT_DETECTIVE_CONFIG` | Configuration file path | `./config.json` |
-| `OBJECT_DETECTIVE_TEMPLATES` | Templates directory | `./templates` |
-| `OBJECT_DETECTIVE_EXAMPLES` | Examples directory | `./examples` |
-| `PYTHONPATH` | Python module search path | Includes src/ and utils/ |
-| `OPENCV_LOG_LEVEL` | OpenCV logging level | `ERROR` |
-| `PYAUTOGUI_FAILSAFE` | PyAutoGUI safety feature | `False` |
-| `PYAUTOGUI_PAUSE` | PyAutoGUI delay between actions | `0.01` |
-
-## 🧪 Testing the Environment
-
-After running the setup script, test your environment:
-
+**Solution**:
 ```bash
-python test_environment.py
+# Update pip and install build dependencies
+pip install --upgrade pip setuptools wheel
+
+# Install dependencies from requirements.txt
+pip install -r requirements.txt
+
+# Verify installation
+python -c "import cv2; print('OpenCV version:', cv2.__version__)"
 ```
 
-This comprehensive test will verify:
-- ✅ Environment variables are set correctly
-- ✅ Project structure is complete
-- ✅ All dependencies are installed
-- ✅ Core modules can be imported
-- ✅ Task 3 enhancements are working
-- ✅ Configuration is valid
-- ✅ Example scripts are available
+### 2. Numpy Build Errors
 
-## 🎯 Quick Test Commands
+**Problem**: Build dependencies missing for numpy compilation.
 
-Once setup is complete, try these commands:
-
-### 1. Help and Options
+**Solution**:
 ```bash
-python main.py --help
+# Install build tools first
+pip install setuptools wheel
+
+# Use updated requirements with flexible versions
+pip install -r requirements.txt
 ```
 
-### 2. Motion Detection Demo
+### 3. Virtual Environment Issues
+
+**Problem**: Dependencies installed in wrong environment.
+
+**Solution**:
 ```bash
-python main.py --motion-detect --test-detection
-```
-
-### 3. Color Tracking Demo
-```bash
-python main.py --color-detect --red-range --test-detection
-```
-
-### 4. Enhanced Mouse Demo (Task 3)
-```bash
-python examples/enhanced_mouse_demo.py
-```
-
-### 5. Interactive Motion Tracker
-```bash
-python examples/motion_tracker.py
-```
-
-## 📦 Dependencies Installed
-
-The setup scripts install these packages:
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `opencv-python` | 4.8.1.78 | Computer vision and image processing |
-| `numpy` | 1.24.3 | Numerical computing |
-| `pyautogui` | 0.9.54 | Mouse and keyboard automation |
-| `pillow` | 10.0.1 | Image processing |
-
-## 🎮 Task 3 Features Tested
-
-The environment setup specifically tests these Task 3 enhancements:
-
-- ✅ **Enhanced Mouse Controller**
-  - `move_to_box()` method for smooth cursor movement
-  - `click_box()` method for optional clicking
-  - New configuration options: `move_duration`, `enable_click`
-
-- ✅ **Throttling System**
-  - Prevents excessive mouse movement
-  - Configurable movement intervals
-
-- ✅ **Configuration Validation**
-  - Validates new mouse settings
-  - Ensures proper configuration structure
-
-## 🛠️ Manual Environment Setup
-
-If the automated scripts don't work, you can set up manually:
-
-### 1. Create Virtual Environment
-```bash
+# Create and activate virtual environment
 python -m venv .venv
 
 # Windows
 .venv\Scripts\activate
 
-# Linux/Mac
+# Linux/macOS
 source .venv/bin/activate
-```
 
-### 2. Install Dependencies
-```bash
-pip install --upgrade pip
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 3. Set Environment Variables
+## Dependency Versions
 
-**Windows (Command Prompt):**
-```cmd
-set PYTHONPATH=%CD%;%CD%\src;%CD%\utils
-set OBJECT_DETECTIVE_ROOT=%CD%
-set OBJECT_DETECTIVE_CONFIG=%CD%\config.json
-```
+Current compatible versions:
+- opencv-python >= 4.8.0
+- numpy >= 1.24.0
+- pyautogui >= 0.9.54
+- pillow >= 10.0.0
 
-**Linux/Mac (Bash):**
+## Verification
+
+Test your setup:
 ```bash
-export PYTHONPATH="$(pwd):$(pwd)/src:$(pwd)/utils"
-export OBJECT_DETECTIVE_ROOT="$(pwd)"
-export OBJECT_DETECTIVE_CONFIG="$(pwd)/config.json"
+# Test basic functionality
+python main.py --help
+
+# Test environment
+python test_environment.py
+
+# Test detection
+python main.py --test-detection --motion-detect
 ```
 
-**PowerShell:**
-```powershell
-$env:PYTHONPATH = "$(pwd);$(pwd)\src;$(pwd)\utils"
-$env:OBJECT_DETECTIVE_ROOT = "$(pwd)"
-$env:OBJECT_DETECTIVE_CONFIG = "$(pwd)\config.json"
-```
+## Environment Variables (Optional)
 
-## 🔍 Troubleshooting
-
-### Common Issues
-
-1. **"ModuleNotFoundError"**
-   - Ensure virtual environment is activated
-   - Check that `PYTHONPATH` includes `src/` and `utils/`
-   - Reinstall dependencies: `pip install -r requirements.txt`
-
-2. **"OpenCV import error"**
-   - Try: `pip uninstall opencv-python && pip install opencv-python`
-   - On Linux: `sudo apt-get install libopencv-dev`
-   - On Mac: `brew install opencv`
-
-3. **"PyAutoGUI permission error"**
-   - On macOS: Grant accessibility permissions to Terminal
-   - On Linux: Ensure X11 display is available
-
-4. **"Template not found"**
-   - Create template images in the `templates/` directory
-   - Use PNG format for best results
-
-### Platform-Specific Notes
-
-**Windows:**
-- Use Command Prompt or PowerShell as Administrator if needed
-- Ensure Python is in your PATH
-
-**Linux:**
-- Install additional packages: `sudo apt-get install python3-tk python3-dev`
-- Ensure you have X11 display access
-
-**macOS:**
-- Install Homebrew dependencies: `brew install python-tk`
-- Grant security permissions for automation
-
-## 📁 Project Structure Verification
-
-After setup, your directory should look like:
-
-```
-Object Detective/
-├── 📄 setup_env.bat           # Windows batch setup
-├── 📄 setup_env.sh            # Linux/Mac setup  
-├── 📄 setup_env.ps1           # PowerShell setup
-├── 📄 test_environment.py     # Environment test script
-├── 📄 env_config.txt          # Environment variables reference
-├── 📄 config.json            # Project configuration
-├── 📄 main.py                # Main application
-├── 📄 requirements.txt       # Python dependencies
-├── 📁 .venv/                 # Virtual environment
-├── 📁 src/                   # Core source code
-├── 📁 utils/                 # Utility modules
-├── 📁 examples/              # Example scripts
-└── 📁 templates/             # Template images
-```
-
-## 🎉 Success!
-
-If all tests pass, you're ready to run Object Detective! Try the enhanced mouse features:
-
+For advanced usage, set these environment variables:
 ```bash
-# Enable auto-clicking in config.json:
-# "mouse": { "enable_click": true, "move_duration": 0.1 }
-
-python main.py --motion-detect
+export OBJECT_DETECTIVE_ROOT=/path/to/project
+export OBJECT_DETECTIVE_CONFIG=/path/to/config.json
+export PYTHONPATH=$PYTHONPATH:/path/to/project/src:/path/to/project/utils
 ```
 
-The cursor will now move to detected objects with proper throttling and safety features! 🎯 
+## Python Version Compatibility
+
+- **Recommended**: Python 3.9 - 3.13
+- **Minimum**: Python 3.8
+- **Tested on**: Python 3.13.3
+
+## Platform Support
+
+- ✅ Windows 10/11
+- ✅ Linux (Ubuntu 20.04+)
+- ✅ macOS (10.15+)
+
+## Performance Optimization
+
+For better performance:
+```bash
+# Set environment variables
+export OPENCV_LOG_LEVEL=ERROR
+export PYAUTOGUI_PAUSE=0.01
+export OMP_NUM_THREADS=4
+``` 
