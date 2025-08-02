@@ -5,11 +5,12 @@ Main coordination system that ties together detection, capture, and mouse contro
 
 import time
 import threading
+import cv2
 from typing import Tuple, Optional, Dict, Any, Callable
 from pathlib import Path
 import logging
 
-from .screen_capture import ScreenCapture
+from .screen_capture import ScreenCapture, grab_frame
 from .object_detector import ObjectDetector, DetectionResult
 from .mouse_controller import MouseController, MouseSettings
 
@@ -17,20 +18,47 @@ from .mouse_controller import MouseController, MouseSettings
 class TrackerSystem:
     """Main tracking system that coordinates all components"""
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None, config_path: Optional[str] = None):
         """
         Initialize tracker system
         
         Args:
             config: Configuration dictionary
+            config_path: Path to configuration file (for unified interface)
         """
+        # Handle unified initialization pattern
+        if config_path is not None:
+            from utils.config_loader import ConfigLoader
+            config_loader = ConfigLoader(config_path)
+            config = config_loader.load()
+        
         self.config = config or {}
         
         # Initialize components
         self.screen_capture = ScreenCapture()
+        
+        # Get detection configuration
+        detection_config = self.config.get('detection', {})
+        motion_config = {
+            'min_area': detection_config.get('min_area', 500),
+            'motion_threshold': detection_config.get('motion_threshold', 25),
+            'dilate_iterations': detection_config.get('dilate_iterations', 2),
+            'blur_kernel_size': detection_config.get('blur_kernel_size', 21),
+            'background_history': detection_config.get('background_history', 50),
+            'background_threshold': detection_config.get('background_threshold', 16),
+            'use_background_subtraction': detection_config.get('method') in ['mog2', 'knn']
+        }
+        
         self.object_detector = ObjectDetector(
-            confidence_threshold=self.config.get('tracking', {}).get('confidence_threshold', 0.8)
+            config=detection_config,
+            confidence_threshold=self.config.get('tracking', {}).get('confidence_threshold', 0.8),
+            motion_config=motion_config
         )
+        
+        # Set motion detection method if specified
+        detection_method = detection_config.get('method', 'template')
+        if detection_method in ['mog2', 'knn']:
+            self.object_detector.set_motion_method(detection_method)
         
         # Initialize mouse controller with settings from config
         mouse_config = self.config.get('mouse', {})
@@ -45,6 +73,22 @@ class TrackerSystem:
         
         self.mouse_controller = MouseController(mouse_settings)
         
+        # Simplified interface properties
+        self.region = self.config.get('capture_region', {})
+        self.detector = self.object_detector  # Alias for unified interface
+        self.mouse = self.mouse_controller    # Alias for unified interface
+        
+        # Capture region configuration
+        capture_region_config = self.config.get('capture_region', {})
+        self.capture_region = None
+        if capture_region_config:
+            self.capture_region = (
+                capture_region_config.get('left', 0),
+                capture_region_config.get('top', 0),
+                capture_region_config.get('width', 1920),
+                capture_region_config.get('height', 1080)
+            )
+        
         # Tracking state
         self.is_tracking = False
         self.tracking_thread = None
@@ -53,7 +97,7 @@ class TrackerSystem:
         # Detection state
         self.current_template = None
         self.color_detection_params = None
-        self.detection_method = 'template'  # 'template' or 'color'
+        self.detection_method = detection_config.get('method', 'template')
         
         # Callbacks
         self.on_object_found: Optional[Callable[[DetectionResult], None]] = None
@@ -69,6 +113,114 @@ class TrackerSystem:
         
         # Logger
         self.logger = logging.getLogger(__name__)
+        
+        # Visual tracking settings
+        self.show_visual_feedback = True
+        self.window_name = "Object Detective"
+        self.auto_click_detections = mouse_config.get('auto_click', False)
+    
+    def run(self):
+        """
+        Real-time visual tracking loop with OpenCV display
+        This matches the user's requested interface pattern
+        """
+        print("Starting real-time tracking. Press 'q' to quit.")
+        
+        try:
+            while True:
+                # 1) Capture frame
+                frame = grab_frame(self.region)
+                
+                # 2) Detect objects on this single frame
+                # Returns: List of (x, y, w, h) for each detected object
+                boxes = self.detector.detect(frame)
+                
+                # Update statistics
+                self.stats['frames_processed'] += 1
+                if boxes:
+                    self.stats['objects_detected'] += len(boxes)
+                    self.stats['last_detection_time'] = time.time()
+                
+                # 3) Post-process each detection
+                for (x, y, w, h) in boxes:
+                    # 3a) Draw a rectangle
+                    cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                    
+                    # Add confidence and area text if available
+                    area = w * h
+                    cv2.putText(frame, f"Area: {area}", (x, y - 10), 
+                              cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                    
+                    # 3b) (Optional) Interact: move & click in the center
+                    # Make sure you really want to click *every* detection!
+                    if self.auto_click_detections:
+                        # Adjust coordinates if using capture region
+                        adj_x = x + self.region.get('left', 0)
+                        adj_y = y + self.region.get('top', 0)
+                        adj_box = (adj_x, adj_y, w, h)
+                        self.mouse.click_box(adj_box)
+                    else:
+                        # Just move mouse to center of largest detection
+                        if boxes and (x, y, w, h) == max(boxes, key=lambda b: b[2] * b[3]):
+                            adj_x = x + w // 2 + self.region.get('left', 0)
+                            adj_y = y + h // 2 + self.region.get('top', 0)
+                            self.mouse.move_to(adj_x, adj_y)
+                
+                # Add statistics overlay
+                if boxes:
+                    status_text = f"Detected: {len(boxes)} objects"
+                    cv2.putText(frame, status_text, (10, 30), 
+                              cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                
+                # Add method indicator
+                method_text = f"Method: {self.detection_method}"
+                cv2.putText(frame, method_text, (10, frame.shape[0] - 10), 
+                          cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                
+                # 4) Show the annotated frame
+                cv2.imshow(self.window_name, frame)
+                
+                # 5) Break on 'q' or window close
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q'):
+                    break
+                    
+                # Check if window was closed
+                if cv2.getWindowProperty(self.window_name, cv2.WND_PROP_VISIBLE) < 1:
+                    break
+                    
+        except KeyboardInterrupt:
+            print("Tracking interrupted by user")
+        except Exception as e:
+            print(f"Tracking error: {e}")
+        finally:
+            cv2.destroyAllWindows()
+            print("Visual tracking stopped")
+    
+    def run_headless(self):
+        """
+        Run tracking without visual display (headless mode)
+        """
+        print("Starting headless tracking. Press Ctrl+C to stop.")
+        
+        try:
+            self.start_tracking()
+            
+            # Keep running until interrupted
+            while self.is_tracking:
+                time.sleep(0.1)
+                
+                # Print periodic stats
+                if self.stats['frames_processed'] % 300 == 0 and self.stats['frames_processed'] > 0:
+                    stats = self.get_tracking_stats()
+                    print(f"Stats - FPS: {stats.get('avg_fps', 0):.1f}, "
+                          f"Detections: {stats.get('objects_detected', 0)}, "
+                          f"Rate: {stats.get('detection_rate', 0):.1%}")
+                          
+        except KeyboardInterrupt:
+            print("Headless tracking interrupted")
+        finally:
+            self.stop_tracking()
     
     def load_template(self, template_path: str):
         """
@@ -80,7 +232,8 @@ class TrackerSystem:
         if not Path(template_path).exists():
             raise FileNotFoundError(f"Template file not found: {template_path}")
         
-        self.current_template = self.object_detector.load_template(template_path)
+        template = self.object_detector.load_template(template_path)
+        self.object_detector.set_template(template)
         self.detection_method = 'template'
         self.logger.info(f"Loaded template: {template_path}")
     
@@ -94,13 +247,20 @@ class TrackerSystem:
             upper_color: Upper bound of color range
             color_space: Color space for detection
         """
-        self.color_detection_params = {
-            'lower_color': lower_color,
-            'upper_color': upper_color,
-            'color_space': color_space
-        }
+        self.object_detector.set_color_detection(lower_color, upper_color, color_space)
         self.detection_method = 'color'
         self.logger.info(f"Configured color tracking: {color_space} range {lower_color} to {upper_color}")
+
+    def track_by_motion(self, motion_method: str = 'frame_diff'):
+        """
+        Configure motion-based tracking
+        
+        Args:
+            motion_method: Motion detection method ('frame_diff', 'mog2', 'knn')
+        """
+        self.detection_method = 'motion'
+        self.object_detector.set_motion_detection(motion_method)
+        self.logger.info(f"Configured motion tracking using {motion_method}")
     
     def start_tracking(self):
         """Start the tracking loop"""
@@ -114,6 +274,10 @@ class TrackerSystem:
         if self.detection_method == 'color' and self.color_detection_params is None:
             raise ValueError("No color detection parameters configured")
         
+        if self.detection_method == 'motion':
+            # Reset motion detection state when starting
+            self.object_detector.reset_motion_detection()
+        
         self.is_tracking = True
         self.stats['tracking_start_time'] = time.time()
         self.stats['frames_processed'] = 0
@@ -123,7 +287,7 @@ class TrackerSystem:
         self.tracking_thread = threading.Thread(target=self._tracking_loop, daemon=True)
         self.tracking_thread.start()
         
-        self.logger.info("Object tracking started")
+        self.logger.info(f"Object tracking started using {self.detection_method} method")
     
     def stop_tracking(self):
         """Stop the tracking loop"""
@@ -147,11 +311,14 @@ class TrackerSystem:
         last_detection_result = None
         
         try:
-            for frame in self.screen_capture.capture_continuous(self.fps):
-                if not self.is_tracking:
-                    break
-                
+            while self.is_tracking:
                 start_time = time.time()
+                
+                # Capture frame (either full screen or region)
+                if self.capture_region:
+                    frame = self.screen_capture.capture_region(*self.capture_region)
+                else:
+                    frame = self.screen_capture.capture_screen()
                 
                 # Perform detection
                 detection_result = self._detect_object(frame)
@@ -166,6 +333,12 @@ class TrackerSystem:
                     # Move mouse to detected object
                     if detection_result.center:
                         x, y = detection_result.center
+                        
+                        # Adjust coordinates if using capture region
+                        if self.capture_region:
+                            x += self.capture_region[0]  # Add left offset
+                            y += self.capture_region[1]  # Add top offset
+                        
                         self.mouse_controller.track_to_position(x, y)
                     
                     # Trigger callback
@@ -212,6 +385,9 @@ class TrackerSystem:
                     self.color_detection_params['color_space']
                 )
             
+            elif self.detection_method == 'motion':
+                return self.object_detector.detect_motion(frame)
+            
             else:
                 return DetectionResult(found=False)
                 
@@ -232,12 +408,31 @@ class TrackerSystem:
     def enable_auto_click(self, enabled: bool = True):
         """Enable or disable auto-clicking when object is found"""
         self.mouse_controller.settings.auto_click = enabled
+        self.auto_click_detections = enabled
         self.logger.info(f"Auto-click {'enabled' if enabled else 'disabled'}")
     
     def set_confidence_threshold(self, threshold: float):
         """Set detection confidence threshold"""
         self.object_detector.set_confidence_threshold(threshold)
         self.logger.info(f"Confidence threshold set to: {threshold}")
+
+    def set_capture_region(self, left: int, top: int, width: int, height: int):
+        """
+        Set capture region for focused tracking
+        
+        Args:
+            left, top: Top-left coordinates
+            width, height: Region dimensions
+        """
+        self.capture_region = (left, top, width, height)
+        self.region = {'left': left, 'top': top, 'width': width, 'height': height}
+        self.logger.info(f"Capture region set to: {left}, {top}, {width}x{height}")
+    
+    def clear_capture_region(self):
+        """Clear capture region to track full screen"""
+        self.capture_region = None
+        self.region = {}
+        self.logger.info("Capture region cleared - tracking full screen")
     
     def get_tracking_stats(self) -> Dict[str, Any]:
         """
@@ -270,7 +465,11 @@ class TrackerSystem:
             if save_path is None:
                 save_path = f"debug_screenshot_{int(time.time())}.png"
             
-            self.screen_capture.save_screenshot(save_path)
+            if self.capture_region:
+                self.screen_capture.save_screenshot(save_path, self.capture_region)
+            else:
+                self.screen_capture.save_screenshot(save_path)
+            
             self.logger.info(f"Screenshot saved: {save_path}")
             return save_path
             
@@ -289,13 +488,23 @@ class TrackerSystem:
             DetectionResult: Test detection result
         """
         try:
-            frame = self.screen_capture.capture_screen()
+            if self.capture_region:
+                frame = self.screen_capture.capture_region(*self.capture_region)
+            else:
+                frame = self.screen_capture.capture_screen()
+                
             result = self._detect_object(frame)
             
             if save_result and result.found:
                 # Draw detection result on frame and save
                 import cv2
-                if result.bounding_box:
+                
+                # Draw all detected objects for motion detection
+                if result.multiple_objects:
+                    for box in result.multiple_objects:
+                        x, y, w, h = box
+                        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                elif result.bounding_box:
                     x, y, w, h = result.bounding_box
                     cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
                 

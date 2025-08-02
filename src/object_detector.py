@@ -22,19 +22,43 @@ class DetectionResult:
 class ObjectDetector:
     """Handles object detection using various methods"""
     
-    def __init__(self, confidence_threshold: float = 0.8, motion_config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None, confidence_threshold: float = 0.8, motion_config: Optional[Dict[str, Any]] = None):
         """
         Initialize object detector
         
         Args:
+            config: Configuration dictionary (for unified interface)
             confidence_threshold: Minimum confidence for detection
             motion_config: Configuration for motion detection
         """
-        self.confidence_threshold = confidence_threshold
+        # Handle both old and new initialization patterns
+        if config is not None:
+            # New unified initialization
+            self.config = config
+            self.detection_method = config.get('method', 'template')
+            self.confidence_threshold = config.get('confidence_threshold', confidence_threshold)
+            
+            # Extract motion config from main config
+            motion_config = {
+                'min_area': config.get('min_area', 500),
+                'motion_threshold': config.get('motion_threshold', 25),
+                'dilate_iterations': config.get('dilate_iterations', 2),
+                'blur_kernel_size': config.get('blur_kernel_size', 21),
+                'background_history': config.get('background_history', 50),
+                'background_threshold': config.get('background_threshold', 16),
+                'use_background_subtraction': config.get('method') in ['mog2', 'knn']
+            }
+        else:
+            # Old initialization pattern
+            self.config = {}
+            self.detection_method = 'template'
+            self.confidence_threshold = confidence_threshold
+            motion_config = motion_config or {}
+        
         self.template_cache = {}
         
         # Motion detection parameters
-        self.motion_config = motion_config or {}
+        self.motion_config = motion_config
         self.min_area = self.motion_config.get('min_area', 500)
         self.motion_threshold = self.motion_config.get('motion_threshold', 25)
         self.dilate_iterations = self.motion_config.get('dilate_iterations', 2)
@@ -55,6 +79,77 @@ class ObjectDetector:
                 varThreshold=self.background_threshold,
                 detectShadows=True
             )
+        
+        # Current detection settings
+        self.current_template = None
+        self.color_detection_params = None
+        
+        # Set detection method from config
+        if config:
+            method = config.get('method', 'template')
+            if method in ['mog2', 'knn']:
+                self.set_motion_method(method)
+            elif method == 'motion':
+                self.detection_method = 'motion'
+    
+    def detect(self, frame: np.ndarray) -> List[Tuple[int, int, int, int]]:
+        """
+        Unified detection method that returns list of bounding boxes
+        
+        Args:
+            frame: Input frame for detection
+            
+        Returns:
+            List of bounding boxes as (x, y, width, height) tuples
+        """
+        boxes = []
+        
+        try:
+            if self.detection_method == 'motion':
+                result = self.detect_motion(frame)
+                if result.found and result.multiple_objects:
+                    boxes = result.multiple_objects
+                elif result.found and result.bounding_box:
+                    boxes = [result.bounding_box]
+                    
+            elif self.detection_method == 'template' and self.current_template is not None:
+                result = self.detect_object(frame, self.current_template)
+                if result.found and result.bounding_box:
+                    boxes = [result.bounding_box]
+                    
+            elif self.detection_method == 'color' and self.color_detection_params:
+                result = self.find_by_color(
+                    frame,
+                    self.color_detection_params['lower_color'],
+                    self.color_detection_params['upper_color'],
+                    self.color_detection_params['color_space']
+                )
+                if result.found and result.bounding_box:
+                    boxes = [result.bounding_box]
+                    
+        except Exception as e:
+            print(f"Detection error: {e}")
+            
+        return boxes
+    
+    def set_template(self, template: np.ndarray):
+        """Set template for detection"""
+        self.current_template = template
+        self.detection_method = 'template'
+    
+    def set_color_detection(self, lower_color: Tuple[int, int, int], upper_color: Tuple[int, int, int], color_space: str = 'HSV'):
+        """Set color detection parameters"""
+        self.color_detection_params = {
+            'lower_color': lower_color,
+            'upper_color': upper_color,
+            'color_space': color_space
+        }
+        self.detection_method = 'color'
+    
+    def set_motion_detection(self, method: str = 'frame_diff'):
+        """Set motion detection method"""
+        self.detection_method = 'motion'
+        self.set_motion_method(method)
         
     def detect_object(self, screen_image: np.ndarray, template: np.ndarray, 
                      method: int = cv2.TM_CCOEFF_NORMED) -> DetectionResult:

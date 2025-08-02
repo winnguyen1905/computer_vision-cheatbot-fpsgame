@@ -6,8 +6,41 @@ Handles real-time screen capturing and region-based captures
 import cv2
 import numpy as np
 import pyautogui
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict, Any
 import time
+
+
+def grab_frame(region: Optional[Dict[str, int]] = None) -> np.ndarray:
+    """
+    Utility function to grab a frame from screen or region
+    
+    Args:
+        region: Optional region dict with 'left', 'top', 'width', 'height' keys
+        
+    Returns:
+        np.ndarray: Captured frame in BGR format
+    """
+    try:
+        if region and any(region.get(key, 0) > 0 for key in ['left', 'top', 'width', 'height']):
+            # Capture specific region
+            x = region.get('left', 0)
+            y = region.get('top', 0)
+            width = region.get('width', 1920)
+            height = region.get('height', 1080)
+            
+            screenshot = pyautogui.screenshot(region=(x, y, width, height))
+        else:
+            # Capture full screen
+            screenshot = pyautogui.screenshot()
+        
+        # Convert PIL image to numpy array and BGR
+        frame = np.array(screenshot)
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        
+        return frame
+        
+    except Exception as e:
+        raise RuntimeError(f"Failed to grab frame: {e}")
 
 
 class ScreenCapture:
@@ -72,6 +105,18 @@ class ScreenCapture:
             
         except Exception as e:
             raise RuntimeError(f"Failed to capture region: {e}")
+    
+    def grab_frame(self, region: Optional[Dict[str, int]] = None) -> np.ndarray:
+        """
+        Grab a frame using the same interface as the standalone function
+        
+        Args:
+            region: Optional region dict with 'left', 'top', 'width', 'height' keys
+            
+        Returns:
+            np.ndarray: Captured frame in BGR format
+        """
+        return grab_frame(region)
     
     def get_screen_size(self) -> Tuple[int, int]:
         """
