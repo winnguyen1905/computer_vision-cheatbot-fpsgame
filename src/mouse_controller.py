@@ -18,6 +18,8 @@ class MouseSettings:
     smooth_movement: bool = True
     auto_click: bool = False
     click_delay: float = 0.1
+    move_duration: float = 0.1  # seconds it takes to move the mouse
+    enable_click: bool = False  # set true if you want auto-clicks
     
 
 class MouseController:
@@ -316,3 +318,41 @@ class MouseController:
         new_speed = max(0.1, min(1.0, self.settings.movement_speed * speed_factor))
         
         return new_speed 
+
+    def move_to_box(self, box: Tuple[int, int, int, int]):
+        """
+        Smoothly moves the cursor to the center of the bounding box.
+        
+        Args:
+            box: Bounding box as (x, y, w, h)
+        """
+        try:
+            x, y, w, h = box
+            center_x = x + w // 2
+            center_y = y + h // 2
+            
+            # Use configured move duration
+            pyautogui.moveTo(center_x, center_y, duration=self.settings.move_duration)
+            self.current_x, self.current_y = center_x, center_y
+            
+        except Exception as e:
+            raise RuntimeError(f"Failed to move to box: {e}")
+    
+    def click_box(self, box: Tuple[int, int, int, int]):
+        """
+        Moves to the box center, then clicks (if enabled).
+        
+        Args:
+            box: Bounding box as (x, y, w, h)
+        """
+        try:
+            # Move to the box center
+            self.move_to_box(box)
+            
+            # Click if enabled
+            if self.settings.enable_click:
+                pyautogui.click()
+                time.sleep(self.settings.click_delay)
+                
+        except Exception as e:
+            raise RuntimeError(f"Failed to click box: {e}") 

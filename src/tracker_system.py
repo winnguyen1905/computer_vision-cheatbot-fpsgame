@@ -68,7 +68,9 @@ class TrackerSystem:
             movement_speed=tracking_config.get('movement_speed', 0.3),
             smooth_movement=tracking_config.get('smooth_movement', True),
             auto_click=mouse_config.get('auto_click', False),
-            click_delay=mouse_config.get('click_delay', 0.1)
+            click_delay=mouse_config.get('click_delay', 0.1),
+            move_duration=mouse_config.get('move_duration', 0.1),
+            enable_click=mouse_config.get('enable_click', False)
         )
         
         self.mouse_controller = MouseController(mouse_settings)
@@ -126,6 +128,10 @@ class TrackerSystem:
         """
         print("Starting real-time tracking. Press 'q' to quit.")
         
+        # Throttling variables for mouse movement
+        last_move = 0
+        move_interval = 0.2  # seconds between mouse movements
+        
         try:
             while True:
                 # 1) Capture frame
@@ -150,21 +156,27 @@ class TrackerSystem:
                     area = w * h
                     cv2.putText(frame, f"Area: {area}", (x, y - 10), 
                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                
+                # 4) Mouse interaction with throttling
+                now = time.time()
+                if boxes and now - last_move > move_interval:
+                    # Pick the largest box (by area) as the target
+                    target_box = max(boxes, key=lambda b: b[2] * b[3])
+                    x, y, w, h = target_box
                     
-                    # 3b) (Optional) Interact: move & click in the center
-                    # Make sure you really want to click *every* detection!
-                    if self.auto_click_detections:
-                        # Adjust coordinates if using capture region
-                        adj_x = x + self.region.get('left', 0)
-                        adj_y = y + self.region.get('top', 0)
-                        adj_box = (adj_x, adj_y, w, h)
-                        self.mouse.click_box(adj_box)
-                    else:
-                        # Just move mouse to center of largest detection
-                        if boxes and (x, y, w, h) == max(boxes, key=lambda b: b[2] * b[3]):
-                            adj_x = x + w // 2 + self.region.get('left', 0)
-                            adj_y = y + h // 2 + self.region.get('top', 0)
-                            self.mouse.move_to(adj_x, adj_y)
+                    # Adjust coordinates if using capture region
+                    adj_x = x + self.region.get('left', 0)
+                    adj_y = y + self.region.get('top', 0)
+                    adjusted_box = (adj_x, adj_y, w, h)
+                    
+                    # Move mouse to the target box
+                    self.mouse.move_to_box(adjusted_box)
+                    
+                    # Optionally click (based on configuration)
+                    if self.mouse.settings.enable_click:
+                        self.mouse.click_box(adjusted_box)
+                    
+                    last_move = now
                 
                 # Add statistics overlay
                 if boxes:
@@ -177,10 +189,16 @@ class TrackerSystem:
                 cv2.putText(frame, method_text, (10, frame.shape[0] - 10), 
                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
                 
-                # 4) Show the annotated frame
+                # Add throttling status
+                time_since_move = now - last_move
+                throttle_text = f"Last move: {time_since_move:.1f}s ago"
+                cv2.putText(frame, throttle_text, (10, frame.shape[0] - 30), 
+                          cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                
+                # 5) Show the annotated frame
                 cv2.imshow(self.window_name, frame)
                 
-                # 5) Break on 'q' or window close
+                # 6) Break on 'q' or window close
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord('q'):
                     break
