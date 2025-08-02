@@ -110,6 +110,51 @@ class MouseController:
         except Exception as e:
             raise RuntimeError(f"Failed to click at position: {e}")
     
+    def click_box(self, box: Tuple[int, int, int, int], button: str = 'left', clicks: int = 1):
+        """
+        Click in the center of a bounding box
+        
+        Args:
+            box: Bounding box as (x, y, width, height)
+            button: Mouse button ('left', 'right', 'middle')
+            clicks: Number of clicks
+        """
+        try:
+            x, y, w, h = box
+            
+            # Calculate center of the box
+            center_x = x + w // 2
+            center_y = y + h // 2
+            
+            # Click at center
+            self.click_at(center_x, center_y, button=button, clicks=clicks)
+            
+        except Exception as e:
+            raise RuntimeError(f"Failed to click box: {e}")
+    
+    def move_to_box_center(self, box: Tuple[int, int, int, int]):
+        """
+        Move mouse to the center of a bounding box without clicking
+        
+        Args:
+            box: Bounding box as (x, y, width, height)
+        """
+        try:
+            x, y, w, h = box
+            
+            # Calculate center of the box
+            center_x = x + w // 2
+            center_y = y + h // 2
+            
+            # Move to center
+            if self.settings.smooth_movement:
+                self.smooth_move_to(center_x, center_y)
+            else:
+                self.move_to(center_x, center_y)
+                
+        except Exception as e:
+            raise RuntimeError(f"Failed to move to box center: {e}")
+    
     def double_click_at(self, x: int, y: int):
         """Double click at coordinates"""
         self.click_at(x, y, clicks=2)
@@ -117,6 +162,14 @@ class MouseController:
     def right_click_at(self, x: int, y: int):
         """Right click at coordinates"""
         self.click_at(x, y, button='right')
+    
+    def double_click_box(self, box: Tuple[int, int, int, int]):
+        """Double click in the center of a bounding box"""
+        self.click_box(box, clicks=2)
+    
+    def right_click_box(self, box: Tuple[int, int, int, int]):
+        """Right click in the center of a bounding box"""
+        self.click_box(box, button='right')
     
     def drag_to(self, start_x: int, start_y: int, end_x: int, end_y: int, 
                 duration: float = 1.0, button: str = 'left'):
