@@ -23,6 +23,8 @@
   },
   "mouse": {
     "auto_click": false,
-    "click_delay": 0.1
+    "click_delay": 0.1,
+    "move_duration": 0.1,
+    "enable_click": false
   }
 } 
