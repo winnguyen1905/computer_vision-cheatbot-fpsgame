@@ -1,0 +1,16 @@
+{
+  "tracking": {
+    "fps": 30,
+    "confidence_threshold": 0.8,
+    "smooth_movement": true,
+    "movement_speed": 0.3
+  },
+  "detection": {
+    "method": "template",
+    "template_path": "templates/target_object.png"
+  },
+  "mouse": {
+    "auto_click": false,
+    "click_delay": 0.1
+  }
+} 
