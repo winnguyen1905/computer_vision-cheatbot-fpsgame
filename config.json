@@ -1,4 +1,10 @@
 {
+  "capture_region": {
+    "top": 0,
+    "left": 0,
+    "width": 1920,
+    "height": 1080
+  },
   "tracking": {
     "fps": 30,
     "confidence_threshold": 0.8,
@@ -6,8 +12,14 @@
     "movement_speed": 0.3
   },
   "detection": {
-    "method": "template",
-    "template_path": "templates/target_object.png"
+    "method": "motion",
+    "template_path": "templates/target_object.png",
+    "min_area": 500,
+    "background_history": 50,
+    "background_threshold": 16,
+    "motion_threshold": 25,
+    "dilate_iterations": 2,
+    "blur_kernel_size": 21
   },
   "mouse": {
     "auto_click": false,
