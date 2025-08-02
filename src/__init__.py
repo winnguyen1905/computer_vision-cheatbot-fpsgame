@@ -13,7 +13,7 @@ from .mouse_controller import MouseController
 
 __all__ = [
     'TrackerSystem',
-    'ObjectDetector', 
+    'ObjectDetector',
     'ScreenCapture',
     'MouseController'
 ] 

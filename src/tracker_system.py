@@ -10,9 +10,9 @@ from typing import Tuple, Optional, Dict, Any, Callable
 from pathlib import Path
 import logging
 
-from .screen_capture import ScreenCapture, grab_frame
-from .object_detector import ObjectDetector, DetectionResult
-from .mouse_controller import MouseController, MouseSettings
+from screen_capture import ScreenCapture, grab_frame
+from object_detector import ObjectDetector, DetectionResult
+from mouse_controller import MouseController, MouseSettings
 
 
 class TrackerSystem:

@@ -8,7 +8,6 @@ import numpy as np
 from typing import Tuple, Optional, List, Dict, Any
 from dataclasses import dataclass
 
-
 @dataclass
 class DetectionResult:
     """Result of object detection"""
