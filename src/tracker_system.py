@@ -13,6 +13,7 @@ import logging
 from screen_capture import ScreenCapture, grab_frame
 from object_detector import ObjectDetector, DetectionResult
 from mouse_controller import MouseController, MouseSettings
+from keyboard_controller import KeyboardController
 
 
 class TrackerSystem:
@@ -75,10 +76,14 @@ class TrackerSystem:
         
         self.mouse_controller = MouseController(mouse_settings)
         
+        # Initialize keyboard controller
+        self.keyboard_controller = KeyboardController(self)
+        
         # Simplified interface properties
         self.region = self.config.get('capture_region', {})
         self.detector = self.object_detector  # Alias for unified interface
         self.mouse = self.mouse_controller    # Alias for unified interface
+        self.keyboard = self.keyboard_controller  # Alias for unified interface
         
         # Capture region configuration
         capture_region_config = self.config.get('capture_region', {})
@@ -93,8 +98,26 @@ class TrackerSystem:
         
         # Tracking state
         self.is_tracking = False
+        self.should_exit = False  # For graceful shutdown via shortcuts
         self.tracking_thread = None
         self.fps = self.config.get('tracking', {}).get('fps', 30)
+        
+        # Visual display settings (merge with config)
+        visual_config_from_config = self.config.get('visual', {})
+        self.visual_config = {
+            'show_circles': visual_config_from_config.get('show_circles', True),
+            'circle_radius': visual_config_from_config.get('circle_radius', 50),
+            'detection_circle_color': (0, 255, 255),  # Yellow around objects
+            'range_circle_color': (0, 255, 0),        # Green for detection zone
+            'circle_thickness': 2,
+            'show_detection_range': visual_config_from_config.get('show_detection_range', True),
+            'range_circle_radius': visual_config_from_config.get('range_circle_radius', 0),  # Auto-calculate 10%
+            'range_percentage': visual_config_from_config.get('range_percentage', 0.10),  # 10% of screen
+            'show_crosshair': visual_config_from_config.get('show_crosshair', True),
+            'crosshair_color': (0, 0, 255),           # Red
+            'crosshair_size': 20,
+            'detection_zone_alpha': 0.3               # Transparency for zone
+        }
         
         # Detection state
         self.current_template = None
@@ -126,7 +149,13 @@ class TrackerSystem:
         Real-time visual tracking loop with OpenCV display
         This matches the user's requested interface pattern
         """
-        print("Starting real-time tracking. Press 'q' to quit.")
+        print("Starting real-time tracking. Press 'q' to quit or use Ctrl+Shift+Q for global stop.")
+        
+        # Start keyboard shortcut listener
+        try:
+            self.keyboard_controller.start_listening()
+        except Exception as e:
+            print(f"Warning: Keyboard shortcuts not available: {e}")
         
         # Throttling variables for mouse movement
         last_move = 0
@@ -134,6 +163,10 @@ class TrackerSystem:
         
         try:
             while True:
+                # Check for exit signal from keyboard shortcuts
+                if self.should_exit:
+                    break
+                
                 # 1) Capture frame
                 frame = grab_frame(self.region)
                 
@@ -151,6 +184,32 @@ class TrackerSystem:
                 for (x, y, w, h) in boxes:
                     # 3a) Draw a rectangle
                     cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                    
+                    # 3b) Draw detection circle around object center
+                    if self.visual_config['show_circles']:
+                        center_x = x + w // 2
+                        center_y = y + h // 2
+                        radius = self.visual_config['circle_radius']
+                        color = self.visual_config['detection_circle_color']
+                        thickness = self.visual_config['circle_thickness']
+                        
+                        cv2.circle(frame, (center_x, center_y), radius, color, thickness)
+                        
+                        # Draw crosshair at center
+                        if self.visual_config['show_crosshair']:
+                            crosshair_size = self.visual_config['crosshair_size']
+                            crosshair_color = self.visual_config['crosshair_color']
+                            
+                            # Horizontal line
+                            cv2.line(frame, 
+                                   (center_x - crosshair_size, center_y), 
+                                   (center_x + crosshair_size, center_y), 
+                                   crosshair_color, 2)
+                            # Vertical line
+                            cv2.line(frame, 
+                                   (center_x, center_y - crosshair_size), 
+                                   (center_x, center_y + crosshair_size), 
+                                   crosshair_color, 2)
                     
                     # Add confidence and area text if available
                     area = w * h
@@ -195,6 +254,25 @@ class TrackerSystem:
                 cv2.putText(frame, throttle_text, (10, frame.shape[0] - 30), 
                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
                 
+                # Draw detection range circle at screen center
+                if self.visual_config['show_detection_range']:
+                    center_x = frame.shape[1] // 2
+                    center_y = frame.shape[0] // 2
+                    range_radius = self.visual_config['range_circle_radius']
+                    range_color = self.visual_config['range_circle_color']
+                    
+                    # Draw main range circle
+                    cv2.circle(frame, (center_x, center_y), range_radius, range_color, 1)
+                    
+                    # Draw smaller inner circles for reference
+                    cv2.circle(frame, (center_x, center_y), range_radius // 2, range_color, 1)
+                    cv2.circle(frame, (center_x, center_y), range_radius // 4, range_color, 1)
+                    
+                    # Add range text
+                    cv2.putText(frame, f"Range: {range_radius}px", 
+                              (center_x - 50, center_y + range_radius + 20), 
+                              cv2.FONT_HERSHEY_SIMPLEX, 0.5, range_color, 1)
+                
                 # 5) Show the annotated frame
                 cv2.imshow(self.window_name, frame)
                 
@@ -212,6 +290,12 @@ class TrackerSystem:
         except Exception as e:
             print(f"Tracking error: {e}")
         finally:
+            # Stop keyboard listener
+            try:
+                self.keyboard_controller.stop_listening()
+            except:
+                pass
+                
             cv2.destroyAllWindows()
             print("Visual tracking stopped")
     
@@ -219,13 +303,19 @@ class TrackerSystem:
         """
         Run tracking without visual display (headless mode)
         """
-        print("Starting headless tracking. Press Ctrl+C to stop.")
+        print("Starting headless tracking. Press Ctrl+C or Ctrl+Shift+Q to stop.")
+        
+        # Start keyboard shortcut listener
+        try:
+            self.keyboard_controller.start_listening()
+        except Exception as e:
+            print(f"Warning: Keyboard shortcuts not available: {e}")
         
         try:
             self.start_tracking()
             
             # Keep running until interrupted
-            while self.is_tracking:
+            while self.is_tracking and not self.should_exit:
                 time.sleep(0.1)
                 
                 # Print periodic stats
@@ -239,6 +329,11 @@ class TrackerSystem:
             print("Headless tracking interrupted")
         finally:
             self.stop_tracking()
+            # Stop keyboard listener
+            try:
+                self.keyboard_controller.stop_listening()
+            except:
+                pass
     
     def load_template(self, template_path: str):
         """
@@ -322,6 +417,17 @@ class TrackerSystem:
             self.tracking_thread.join(timeout=2.0)
         
         self.logger.info("Object tracking stopped")
+    
+    def shutdown(self):
+        """Graceful shutdown via keyboard shortcuts"""
+        self.should_exit = True
+        self.stop_tracking()
+        
+        # Stop keyboard listener
+        try:
+            self.keyboard_controller.stop_listening()
+        except:
+            pass
     
     def _tracking_loop(self):
         """Main tracking loop running in separate thread"""
@@ -469,6 +575,48 @@ class TrackerSystem:
         
         return stats
     
+    def toggle_circle_display(self):
+        """Toggle circle display on/off"""
+        self.visual_config['show_circles'] = not self.visual_config['show_circles']
+        status = "ON" if self.visual_config['show_circles'] else "OFF"
+        self.logger.info(f"Circle display: {status}")
+        return self.visual_config['show_circles']
+    
+    def toggle_range_display(self):
+        """Toggle detection range display on/off"""
+        self.visual_config['show_detection_range'] = not self.visual_config['show_detection_range']
+        status = "ON" if self.visual_config['show_detection_range'] else "OFF"
+        self.logger.info(f"Range display: {status}")
+        return self.visual_config['show_detection_range']
+    
+    def toggle_crosshair_display(self):
+        """Toggle crosshair display on/off"""
+        self.visual_config['show_crosshair'] = not self.visual_config['show_crosshair']
+        status = "ON" if self.visual_config['show_crosshair'] else "OFF"
+        self.logger.info(f"Crosshair display: {status}")
+        return self.visual_config['show_crosshair']
+    
+    def set_circle_radius(self, radius: int):
+        """Set detection circle radius"""
+        self.visual_config['circle_radius'] = max(10, min(radius, 200))
+        self.logger.info(f"Circle radius set to: {self.visual_config['circle_radius']}")
+    
+    def set_range_radius(self, radius: int):
+        """Set detection range radius"""
+        self.visual_config['range_circle_radius'] = max(50, min(radius, 500))
+        self.logger.info(f"Range radius set to: {self.visual_config['range_circle_radius']}")
+    
+    def get_visual_config(self) -> Dict[str, Any]:
+        """Get current visual configuration"""
+        return self.visual_config.copy()
+    
+    def update_visual_config(self, **kwargs):
+        """Update visual configuration"""
+        for key, value in kwargs.items():
+            if key in self.visual_config:
+                self.visual_config[key] = value
+                self.logger.debug(f"Visual config updated: {key} = {value}")
+
     def capture_current_screen(self, save_path: Optional[str] = None) -> Optional[str]:
         """
         Capture current screen for debugging
