@@ -70,4 +70,20 @@ def init():
                 frameParser.parse(result)
 
 if __name__ == "__main__":
-    init()
+    import sys
+    
+    # Check if GUI flag is passed
+    if len(sys.argv) > 1 and sys.argv[1] == "--gui":
+        print("Starting GUI Configuration Manager...")
+        try:
+            from gui_config import ConfigGUI
+            app = ConfigGUI()
+            app.run()
+        except ImportError:
+            print("GUI dependencies not available. Please install tkinter.")
+        except Exception as e:
+            print(f"Error starting GUI: {e}")
+    else:
+        print("Starting Object Detective...")
+        print("Use 'python run.py --gui' to open the configuration GUI")
+        init()
