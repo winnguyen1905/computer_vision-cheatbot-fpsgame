@@ -10,8 +10,11 @@ class ConfigGUI:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Object Detective - Configuration Manager")
-        self.root.geometry("800x600")
+        self.root.geometry("1200x800")
         self.root.resizable(True, True)
+        
+        # Configure modern styling
+        self.setup_styles()
         
         # Configuration file path
         self.config_path = "config.ini"
@@ -25,6 +28,70 @@ class ConfigGUI:
         
         # Center window
         self.center_window()
+        
+    def setup_styles(self):
+        """Setup modern UI styling"""
+        style = ttk.Style()
+        
+        # Configure notebook style
+        style.configure('Custom.TNotebook', background='#f0f0f0')
+        style.configure('Custom.TNotebook.Tab', padding=[20, 8])
+        
+        # Configure frame styles
+        style.configure('Title.TLabelframe', foreground='#2c3e50', font=('Arial', 10, 'bold'))
+        style.configure('Section.TLabelframe', foreground='#34495e', font=('Arial', 9, 'bold'))
+        style.configure('Subsection.TLabelframe', foreground='#7f8c8d', font=('Arial', 8))
+        
+        # Configure button styles
+        style.configure('Action.TButton', font=('Arial', 9, 'bold'))
+        style.configure('Primary.TButton', foreground='white')
+        
+        # Set background
+        self.root.configure(bg='#f8f9fa')
+        
+    def create_header(self):
+        """Create application header"""
+        header_frame = tk.Frame(self.root, bg='#2c3e50', height=80)
+        header_frame.pack(fill=tk.X)
+        header_frame.pack_propagate(False)
+        
+        # Title
+        title_label = tk.Label(header_frame, text="Object Detective", 
+                              font=('Arial', 18, 'bold'), 
+                              fg='white', bg='#2c3e50')
+        title_label.pack(side=tk.LEFT, padx=20, pady=15)
+        
+        # Subtitle
+        subtitle_label = tk.Label(header_frame, text="Configuration Manager", 
+                                 font=('Arial', 11), 
+                                 fg='#bdc3c7', bg='#2c3e50')
+        subtitle_label.pack(side=tk.LEFT, padx=(0, 20), pady=15)
+        
+        # Status indicator
+        self.status_frame = tk.Frame(header_frame, bg='#2c3e50')
+        self.status_frame.pack(side=tk.RIGHT, padx=20, pady=15)
+        
+        self.status_label = tk.Label(self.status_frame, text="● Configuration Loaded", 
+                                    font=('Arial', 9), 
+                                    fg='#27ae60', bg='#2c3e50')
+        self.status_label.pack()
+        
+    def create_section_frame(self, parent, title, style='Title.TLabelframe'):
+        """Create a styled section frame"""
+        frame = ttk.LabelFrame(parent, text=f"  {title}  ", style=style, padding=15)
+        frame.pack(fill=tk.X, padx=8, pady=8)
+        return frame
+        
+    def create_subsection_frame(self, parent, title):
+        """Create a styled subsection frame"""
+        frame = ttk.LabelFrame(parent, text=f"  {title}  ", style='Subsection.TLabelframe', padding=10)
+        frame.pack(fill=tk.X, padx=5, pady=5)
+        return frame
+        
+    def add_separator(self, parent):
+        """Add a visual separator"""
+        separator = ttk.Separator(parent, orient='horizontal')
+        separator.pack(fill=tk.X, padx=10, pady=8)
         
     def center_window(self):
         self.root.update_idletasks()
@@ -56,13 +123,16 @@ class ConfigGUI:
             
     def create_widgets(self):
         """Create all GUI widgets"""
-        # Create main frame
-        main_frame = ttk.Frame(self.root)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # Create header
+        self.create_header()
         
-        # Create notebook for tabs
-        self.notebook = ttk.Notebook(main_frame)
-        self.notebook.pack(fill=tk.BOTH, expand=True)
+        # Create main frame with improved styling
+        main_frame = ttk.Frame(self.root, style='Card.TFrame')
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 15))
+        
+        # Create notebook for tabs with custom style
+        self.notebook = ttk.Notebook(main_frame, style='Custom.TNotebook')
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # Create tabs
         self.create_detection_tab()
@@ -82,83 +152,185 @@ class ConfigGUI:
     def create_detection_tab(self):
         """Create Detection Window tab"""
         frame = ttk.Frame(self.notebook)
-        self.notebook.add(frame, text="Detection Window")
+        self.notebook.add(frame, text="🎯 Detection Window")
+        
+        # Create scrollable content
+        canvas = tk.Canvas(frame, bg='#f8f9fa')
+        scrollbar = ttk.Scrollbar(frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
         
         # Detection window settings
-        settings_frame = ttk.LabelFrame(frame, text="Detection Window Settings", padding=10)
-        settings_frame.pack(fill=tk.X, padx=5, pady=5)
+        settings_frame = self.create_section_frame(scrollable_frame, "🖼️ Detection Area Configuration")
+        
+        # Dimensions subsection
+        dim_frame = self.create_subsection_frame(settings_frame, "Dimensions")
         
         # Width
-        ttk.Label(settings_frame, text="Detection Window Width:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        width_row = ttk.Frame(dim_frame)
+        width_row.pack(fill=tk.X, pady=3)
+        ttk.Label(width_row, text="Width:", font=('Arial', 9, 'bold')).pack(side=tk.LEFT)
         self.detection_width = tk.StringVar(value=self.config.get('Detection window', 'detection_window_width'))
-        width_entry = create_validated_entry(settings_frame, "positive_int", textvariable=self.detection_width, width=10)
-        width_entry.grid(row=0, column=1, sticky=tk.W, padx=5)
+        width_entry = create_validated_entry(width_row, "positive_int", textvariable=self.detection_width, width=8)
+        width_entry.pack(side=tk.LEFT, padx=(10, 5))
         create_tooltip(width_entry, TOOLTIPS['detection_width'])
-        ttk.Label(settings_frame, text="pixels").grid(row=0, column=2, sticky=tk.W)
+        ttk.Label(width_row, text="pixels", foreground='#7f8c8d').pack(side=tk.LEFT)
         
         # Height
-        ttk.Label(settings_frame, text="Detection Window Height:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        height_row = ttk.Frame(dim_frame)
+        height_row.pack(fill=tk.X, pady=3)
+        ttk.Label(height_row, text="Height:", font=('Arial', 9, 'bold')).pack(side=tk.LEFT)
         self.detection_height = tk.StringVar(value=self.config.get('Detection window', 'detection_window_height'))
-        height_entry = create_validated_entry(settings_frame, "positive_int", textvariable=self.detection_height, width=10)
-        height_entry.grid(row=1, column=1, sticky=tk.W, padx=5)
+        height_entry = create_validated_entry(height_row, "positive_int", textvariable=self.detection_height, width=8)
+        height_entry.pack(side=tk.LEFT, padx=(10, 5))
         create_tooltip(height_entry, TOOLTIPS['detection_height'])
-        ttk.Label(settings_frame, text="pixels").grid(row=1, column=2, sticky=tk.W)
+        ttk.Label(height_row, text="pixels", foreground='#7f8c8d').pack(side=tk.LEFT)
         
-        # Circle capture
+        self.add_separator(settings_frame)
+        
+        # Shape subsection
+        shape_frame = self.create_subsection_frame(settings_frame, "Detection Shape")
         self.circle_capture = tk.BooleanVar(value=self.config.getboolean('Detection window', 'circle_capture'))
-        ttk.Checkbutton(settings_frame, text="Enable Circle Capture", variable=self.circle_capture).grid(row=2, column=0, columnspan=3, sticky=tk.W, pady=5)
+        circle_cb = ttk.Checkbutton(shape_frame, text="🔵 Enable Circle Capture Mode", 
+                                   variable=self.circle_capture, 
+                                   style='Accent.TCheckbutton')
+        circle_cb.pack(anchor=tk.W, pady=5)
+        create_tooltip(circle_cb, TOOLTIPS['circle_capture'])
         
-        # Add description
-        desc_frame = ttk.LabelFrame(frame, text="Description", padding=10)
-        desc_frame.pack(fill=tk.X, padx=5, pady=5)
-        ttk.Label(desc_frame, text="Detection window settings control the size and shape of the area where AI detection occurs.\nSmaller windows improve performance but reduce detection range.").pack(anchor=tk.W)
+        # Performance tips
+        tips_frame = self.create_section_frame(scrollable_frame, "💡 Performance Tips", 'Section.TLabelframe')
+        
+        tips_text = """• Smaller detection windows improve performance significantly
+• Circle capture reduces processing area for better FPS
+• Recommended sizes: 300x300 (High Performance) | 400x400 (Balanced) | 500x500 (High Accuracy)
+• Monitor your FPS in the debug window when adjusting these settings"""
+        
+        tips_label = tk.Label(tips_frame, text=tips_text, justify=tk.LEFT, 
+                             font=('Arial', 9), fg='#34495e', bg='#f8f9fa',
+                             wraplength=600)
+        tips_label.pack(anchor=tk.W, padx=10, pady=5)
         
     def create_capture_tab(self):
         """Create Capture Methods tab"""
         frame = ttk.Frame(self.notebook)
-        self.notebook.add(frame, text="Capture Methods")
+        self.notebook.add(frame, text="📹 Capture Methods")
+        
+        # Create scrollable content
+        canvas = tk.Canvas(frame, bg='#f8f9fa')
+        scrollbar = ttk.Scrollbar(frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
         
         # Global settings
-        global_frame = ttk.LabelFrame(frame, text="Global Capture Settings", padding=10)
-        global_frame.pack(fill=tk.X, padx=5, pady=5)
+        global_frame = self.create_section_frame(scrollable_frame, "⚙️ Global Capture Settings")
         
-        ttk.Label(global_frame, text="Capture FPS:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        fps_row = ttk.Frame(global_frame)
+        fps_row.pack(fill=tk.X, pady=5)
+        ttk.Label(fps_row, text="Capture FPS:", font=('Arial', 9, 'bold')).pack(side=tk.LEFT)
         self.capture_fps = tk.StringVar(value=self.config.get('Capture Methods', 'capture_fps'))
-        ttk.Entry(global_frame, textvariable=self.capture_fps, width=10).grid(row=0, column=1, sticky=tk.W, padx=5)
-        ttk.Label(global_frame, text="fps").grid(row=0, column=2, sticky=tk.W)
+        fps_entry = create_validated_entry(fps_row, "positive_int", textvariable=self.capture_fps, width=8)
+        fps_entry.pack(side=tk.LEFT, padx=(10, 5))
+        create_tooltip(fps_entry, TOOLTIPS['capture_fps'])
+        ttk.Label(fps_row, text="fps", foreground='#7f8c8d').pack(side=tk.LEFT)
+        
+        # Warning about FPS
+        warning_frame = tk.Frame(global_frame, bg='#fff3cd', relief=tk.RAISED, bd=1)
+        warning_frame.pack(fill=tk.X, pady=10, padx=5)
+        warning_label = tk.Label(warning_frame, text="⚠️ High FPS values (>120) may cause performance issues and aiming instability",
+                                font=('Arial', 8), fg='#856404', bg='#fff3cd')
+        warning_label.pack(pady=8)
         
         # Capture methods
-        methods_frame = ttk.LabelFrame(frame, text="Capture Methods (Select Only One)", padding=10)
-        methods_frame.pack(fill=tk.X, padx=5, pady=5)
+        methods_frame = self.create_section_frame(scrollable_frame, "🎥 Capture Methods (Select Only One)")
         
         # Bettercam
+        bettercam_frame = self.create_subsection_frame(methods_frame, "🚀 Bettercam (Recommended)")
         self.bettercam_capture = tk.BooleanVar(value=self.config.getboolean('Capture Methods', 'Bettercam_capture'))
-        ttk.Checkbutton(methods_frame, text="Bettercam Capture", variable=self.bettercam_capture).grid(row=0, column=0, sticky=tk.W, pady=2)
+        bettercam_cb = ttk.Checkbutton(bettercam_frame, text="Enable Bettercam Capture", variable=self.bettercam_capture)
+        bettercam_cb.pack(anchor=tk.W, pady=5)
         
-        ttk.Label(methods_frame, text="Monitor ID:").grid(row=1, column=0, sticky=tk.W, pady=2, padx=20)
+        # Bettercam settings
+        bettercam_settings = ttk.Frame(bettercam_frame)
+        bettercam_settings.pack(fill=tk.X, padx=20, pady=5)
+        
+        monitor_row = ttk.Frame(bettercam_settings)
+        monitor_row.pack(fill=tk.X, pady=2)
+        ttk.Label(monitor_row, text="Monitor ID:").pack(side=tk.LEFT)
         self.bettercam_monitor = tk.StringVar(value=self.config.get('Capture Methods', 'bettercam_monitor_id'))
-        ttk.Entry(methods_frame, textvariable=self.bettercam_monitor, width=5).grid(row=1, column=1, sticky=tk.W, padx=5)
+        monitor_entry = create_validated_entry(monitor_row, "positive_int", textvariable=self.bettercam_monitor, width=6)
+        monitor_entry.pack(side=tk.LEFT, padx=(10, 5))
+        ttk.Label(monitor_row, text="(0 = primary monitor)", foreground='#7f8c8d').pack(side=tk.LEFT)
         
-        ttk.Label(methods_frame, text="GPU ID:").grid(row=2, column=0, sticky=tk.W, pady=2, padx=20)
+        gpu_row = ttk.Frame(bettercam_settings)
+        gpu_row.pack(fill=tk.X, pady=2)
+        ttk.Label(gpu_row, text="GPU ID:").pack(side=tk.LEFT)
         self.bettercam_gpu = tk.StringVar(value=self.config.get('Capture Methods', 'bettercam_gpu_id'))
-        ttk.Entry(methods_frame, textvariable=self.bettercam_gpu, width=5).grid(row=2, column=1, sticky=tk.W, padx=5)
+        gpu_entry = create_validated_entry(gpu_row, "positive_int", textvariable=self.bettercam_gpu, width=6)
+        gpu_entry.pack(side=tk.LEFT, padx=(10, 5))
+        ttk.Label(gpu_row, text="(0 = first GPU)", foreground='#7f8c8d').pack(side=tk.LEFT)
+        
+        self.add_separator(methods_frame)
         
         # OBS
+        obs_frame = self.create_subsection_frame(methods_frame, "📺 OBS Virtual Camera")
         self.obs_capture = tk.BooleanVar(value=self.config.getboolean('Capture Methods', 'Obs_capture'))
-        ttk.Checkbutton(methods_frame, text="OBS Capture", variable=self.obs_capture).grid(row=3, column=0, sticky=tk.W, pady=2)
+        obs_cb = ttk.Checkbutton(obs_frame, text="Enable OBS Capture", variable=self.obs_capture)
+        obs_cb.pack(anchor=tk.W, pady=5)
         
-        ttk.Label(methods_frame, text="Camera ID:").grid(row=4, column=0, sticky=tk.W, pady=2, padx=20)
+        obs_settings = ttk.Frame(obs_frame)
+        obs_settings.pack(fill=tk.X, padx=20, pady=5)
+        
+        camera_row = ttk.Frame(obs_settings)
+        camera_row.pack(fill=tk.X, pady=2)
+        ttk.Label(camera_row, text="Camera ID:").pack(side=tk.LEFT)
         self.obs_camera = tk.StringVar(value=self.config.get('Capture Methods', 'Obs_camera_id'))
-        ttk.Entry(methods_frame, textvariable=self.obs_camera, width=5).grid(row=4, column=1, sticky=tk.W, padx=5)
+        camera_entry = ttk.Entry(camera_row, textvariable=self.obs_camera, width=8)
+        camera_entry.pack(side=tk.LEFT, padx=(10, 5))
+        ttk.Label(camera_row, text="('auto' for detection)", foreground='#7f8c8d').pack(side=tk.LEFT)
+        
+        self.add_separator(methods_frame)
         
         # MSS
+        mss_frame = self.create_subsection_frame(methods_frame, "🖥️ MSS Screen Capture")
         self.mss_capture = tk.BooleanVar(value=self.config.getboolean('Capture Methods', 'mss_capture'))
-        ttk.Checkbutton(methods_frame, text="MSS Capture", variable=self.mss_capture).grid(row=5, column=0, sticky=tk.W, pady=2)
+        mss_cb = ttk.Checkbutton(mss_frame, text="Enable MSS Capture (Fallback method)", variable=self.mss_capture)
+        mss_cb.pack(anchor=tk.W, pady=5)
+        
+        # Method comparison
+        comparison_frame = self.create_section_frame(scrollable_frame, "📊 Performance Comparison", 'Section.TLabelframe')
+        
+        comparison_text = """Bettercam: 🟢 Fastest, GPU accelerated, best for gaming
+OBS Virtual Camera: 🟡 Good performance, requires OBS setup
+MSS: 🔴 Slowest, compatible with all systems, CPU intensive"""
+        
+        comparison_label = tk.Label(comparison_frame, text=comparison_text, justify=tk.LEFT,
+                                   font=('Arial', 9), fg='#34495e', bg='#f8f9fa')
+        comparison_label.pack(anchor=tk.W, padx=10, pady=5)
         
     def create_aim_tab(self):
         """Create Aim tab"""
         frame = ttk.Frame(self.notebook)
-        self.notebook.add(frame, text="Aim Settings")
+        self.notebook.add(frame, text="🎯 Aim Settings")
         
         # Aim settings
         aim_frame = ttk.LabelFrame(frame, text="Aim Configuration", padding=10)
@@ -190,7 +362,7 @@ class ConfigGUI:
     def create_hotkeys_tab(self):
         """Create Hotkeys tab"""
         frame = ttk.Frame(self.notebook)
-        self.notebook.add(frame, text="Hotkeys")
+        self.notebook.add(frame, text="⌨️ Hotkeys")
         
         # Hotkeys settings
         hotkeys_frame = ttk.LabelFrame(frame, text="Hotkey Configuration", padding=10)
@@ -229,7 +401,7 @@ class ConfigGUI:
     def create_mouse_tab(self):
         """Create Mouse tab"""
         frame = ttk.Frame(self.notebook)
-        self.notebook.add(frame, text="Mouse Settings")
+        self.notebook.add(frame, text="🖱️ Mouse Settings")
         
         # Mouse basic settings
         basic_frame = ttk.LabelFrame(frame, text="Basic Mouse Settings", padding=10)
@@ -288,7 +460,7 @@ class ConfigGUI:
     def create_shooting_tab(self):
         """Create Shooting tab"""
         frame = ttk.Frame(self.notebook)
-        self.notebook.add(frame, text="Shooting")
+        self.notebook.add(frame, text="🔫 Shooting")
         
         # Shooting settings
         shooting_frame = ttk.LabelFrame(frame, text="Shooting Configuration", padding=10)
@@ -310,7 +482,7 @@ class ConfigGUI:
     def create_arduino_tab(self):
         """Create Arduino tab"""
         frame = ttk.Frame(self.notebook)
-        self.notebook.add(frame, text="Arduino")
+        self.notebook.add(frame, text="🔌 Arduino")
         
         # Arduino settings
         arduino_frame = ttk.LabelFrame(frame, text="Arduino Configuration", padding=10)
@@ -336,7 +508,7 @@ class ConfigGUI:
     def create_ai_tab(self):
         """Create AI tab"""
         frame = ttk.Frame(self.notebook)
-        self.notebook.add(frame, text="AI Settings")
+        self.notebook.add(frame, text="🧠 AI Settings")
         
         # AI model settings
         ai_frame = ttk.LabelFrame(frame, text="AI Model Configuration", padding=10)
@@ -370,7 +542,7 @@ class ConfigGUI:
     def create_overlay_tab(self):
         """Create Overlay tab"""
         frame = ttk.Frame(self.notebook)
-        self.notebook.add(frame, text="Overlay")
+        self.notebook.add(frame, text="👁️ Overlay")
         
         # Overlay settings
         overlay_frame = ttk.LabelFrame(frame, text="Overlay Configuration", padding=10)
@@ -400,7 +572,7 @@ class ConfigGUI:
     def create_debug_tab(self):
         """Create Debug Window tab"""
         frame = ttk.Frame(self.notebook)
-        self.notebook.add(frame, text="Debug")
+        self.notebook.add(frame, text="🛠️ Debug")
         
         # Debug window settings
         debug_frame = ttk.LabelFrame(frame, text="Debug Window Configuration", padding=10)
@@ -441,14 +613,70 @@ class ConfigGUI:
         ttk.Entry(pos_frame, textvariable=self.debug_scale, width=10).grid(row=2, column=1, sticky=tk.W, padx=5)
         
     def create_buttons(self, parent):
-        """Create bottom buttons"""
-        button_frame = ttk.Frame(parent)
-        button_frame.pack(fill=tk.X, pady=10)
+        """Create bottom buttons with improved styling"""
+        # Create bottom bar
+        bottom_bar = tk.Frame(self.root, bg='#ecf0f1', height=60)
+        bottom_bar.pack(fill=tk.X, side=tk.BOTTOM)
+        bottom_bar.pack_propagate(False)
         
-        ttk.Button(button_frame, text="Save Configuration", command=self.save_configuration).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Load Configuration", command=self.load_configuration).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Reset to Defaults", command=self.reset_defaults).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Exit", command=self.root.quit).pack(side=tk.RIGHT, padx=5)
+        button_frame = tk.Frame(bottom_bar, bg='#ecf0f1')
+        button_frame.pack(expand=True, pady=15)
+        
+        # Primary action buttons
+        primary_frame = tk.Frame(button_frame, bg='#ecf0f1')
+        primary_frame.pack(side=tk.LEFT, padx=20)
+        
+        save_btn = tk.Button(primary_frame, text="💾 Save Configuration", 
+                            command=self.save_configuration,
+                            bg='#27ae60', fg='white', font=('Arial', 9, 'bold'),
+                            relief=tk.FLAT, padx=20, pady=8,
+                            cursor='hand2')
+        save_btn.pack(side=tk.LEFT, padx=5)
+        
+        load_btn = tk.Button(primary_frame, text="🔄 Reload Configuration", 
+                            command=self.load_configuration,
+                            bg='#3498db', fg='white', font=('Arial', 9, 'bold'),
+                            relief=tk.FLAT, padx=20, pady=8,
+                            cursor='hand2')
+        load_btn.pack(side=tk.LEFT, padx=5)
+        
+        # Secondary actions
+        secondary_frame = tk.Frame(button_frame, bg='#ecf0f1')
+        secondary_frame.pack(side=tk.LEFT, padx=20)
+        
+        reset_btn = tk.Button(secondary_frame, text="⚠️ Reset to Defaults", 
+                             command=self.reset_defaults,
+                             bg='#e74c3c', fg='white', font=('Arial', 9, 'bold'),
+                             relief=tk.FLAT, padx=15, pady=8,
+                             cursor='hand2')
+        reset_btn.pack(side=tk.LEFT, padx=5)
+        
+        # Exit button on the right
+        exit_frame = tk.Frame(button_frame, bg='#ecf0f1')
+        exit_frame.pack(side=tk.RIGHT, padx=20)
+        
+        exit_btn = tk.Button(exit_frame, text="❌ Exit", 
+                            command=self.root.quit,
+                            bg='#95a5a6', fg='white', font=('Arial', 9, 'bold'),
+                            relief=tk.FLAT, padx=20, pady=8,
+                            cursor='hand2')
+        exit_btn.pack(side=tk.RIGHT)
+        
+        # Add hover effects
+        self.add_button_hover_effects(save_btn, '#229954', '#27ae60')
+        self.add_button_hover_effects(load_btn, '#2980b9', '#3498db')
+        self.add_button_hover_effects(reset_btn, '#c0392b', '#e74c3c')
+        self.add_button_hover_effects(exit_btn, '#7f8c8d', '#95a5a6')
+        
+    def add_button_hover_effects(self, button, hover_color, normal_color):
+        """Add hover effects to buttons"""
+        def on_enter(e):
+            button.config(bg=hover_color)
+        def on_leave(e):
+            button.config(bg=normal_color)
+        
+        button.bind("<Enter>", on_enter)
+        button.bind("<Leave>", on_leave)
         
     def browse_model(self):
         """Browse for AI model file"""
@@ -463,8 +691,15 @@ class ConfigGUI:
             self.ai_model_name.set(model_name)
             
     def save_configuration(self):
-        """Save all settings to config.ini"""
+        """Save all settings to config.ini with validation"""
         try:
+            # Validate settings before saving
+            errors = self.validate_all_settings()
+            if errors:
+                error_message = "Please fix the following errors:\n\n" + "\n".join(errors)
+                messagebox.showerror("Validation Error", error_message)
+                return
+            
             # Update config with current values
             self.update_config_values()
             
@@ -472,9 +707,54 @@ class ConfigGUI:
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 self.config.write(f)
                 
+            # Update status
+            self.status_label.config(text="● Configuration Saved", fg='#27ae60')
+            self.root.after(3000, lambda: self.status_label.config(text="● Configuration Loaded", fg='#27ae60'))
+            
             messagebox.showinfo("Success", "Configuration saved successfully!")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save configuration: {str(e)}")
+            
+    def validate_all_settings(self):
+        """Validate all configuration settings"""
+        errors = []
+        
+        # Validate detection window
+        errors.extend(ConfigValidator.validate_detection_window(
+            self.detection_width.get(), self.detection_height.get()))
+        
+        # Validate capture FPS
+        errors.extend(ConfigValidator.validate_capture_fps(self.capture_fps.get()))
+        
+        # Validate mouse settings
+        errors.extend(ConfigValidator.validate_mouse_settings(
+            self.mouse_dpi.get(), self.mouse_sensitivity.get(),
+            self.mouse_fov_width.get(), self.mouse_fov_height.get()))
+        
+        # Validate AI settings
+        errors.extend(ConfigValidator.validate_ai_settings(
+            self.ai_conf.get(), self.ai_image_size.get()))
+        
+        # Validate capture method selection (only one should be true)
+        capture_methods = [
+            self.bettercam_capture.get(),
+            self.obs_capture.get(),
+            self.mss_capture.get()
+        ]
+        
+        if sum(capture_methods) != 1:
+            errors.append("Please select exactly one capture method")
+            
+        # Validate mouse method selection (only one should be true)
+        mouse_methods = [
+            self.mouse_ghub.get(),
+            self.mouse_rzr.get()
+        ]
+        
+        if sum(mouse_methods) > 1:
+            errors.append("Please select only one mouse driver method")
+        
+        return errors
             
     def load_configuration(self):
         """Reload configuration from file"""
